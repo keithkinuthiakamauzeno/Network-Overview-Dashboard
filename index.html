@@ -1263,84 +1263,70 @@ document.getElementById('locFile').addEventListener('change', () => {
   });
 });
 // ── Auto-fetch JSON files from GitHub Pages repo ─────────────────────────────
-// Network data is split into 4 files to stay under GitHub's 50MB limit:
-//   data/zeno_core.json        — base data (months, weeks, cluster etc)
-//   data/zeno_stations.json    — stations (~31MB)
-//   data/zeno_congestion.json  — customer_congestion_profiles (~34MB)
-//   data/zeno_heatmap.json     — trip_heatmap (~25MB)
-//   data/zeno_locations.json   — location data
-// All fetched in parallel, merged into S.data before render.
-// Falls back gracefully — manual upload buttons still work.
+// Files expected at data/zeno_network_data.json and data/zeno_locations.json
+// relative to the page URL. Falls back gracefully — manual upload still works.
 (function _autoFetchJSON() {
-  if (window.location.protocol === 'file:') return;  // skip on local file open
-
   var base = window.location.href.replace(/\/[^\/]*$/, '');
+  // Don't auto-fetch when running from local file system
+  if (window.location.protocol === 'file:') return;
 
-  function _fetchJSON(url) {
-    return fetch(url)
+  function _fetchAndLoad(url, onSuccess, onFail) {
+    fetch(url)
       .then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + url);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
-      });
+      })
+      .then(function(data) { onSuccess(data); })
+      .catch(function(e) { if (onFail) onFail(e); });
   }
 
-  function _updateNetBtn(merged) {
-    var btn      = document.getElementById('netJsonBtn');
-    var loadBtn  = document.getElementById('loadBtn');
-    var stations = (merged.stations && merged.stations.length) || 0;
-    var months   = (merged.months   && merged.months.length)   || 0;
-    if (btn) {
-      btn.textContent = '✓ Auto-loaded (' + stations + 'ss · ' + months + 'mo)';
-      btn.className   = 'topbar-file-btn loaded';
+  // Auto-load network JSON
+  _fetchAndLoad(
+    base + '/data/zeno_network_data.json',
+    function(parsed) {
+      S.data = parsed;
+      var btn = document.getElementById('netJsonBtn');
+      var stations = (parsed.stations && parsed.stations.length) || 0;
+      var months   = (parsed.months   && parsed.months.length)   || 0;
+      if (btn) {
+        btn.textContent = '✓ zeno_network_data.json (' + stations + 'ss · ' + months + 'mo)';
+        btn.className = 'topbar-file-btn loaded';
+      }
+      var loadBtn = document.getElementById('loadBtn');
+      if (loadBtn) loadBtn.disabled = false;
+      var isoCount = (parsed.summary && parsed.summary.isochrones_count) || 0;
+      if (isoCount > 0) {
+        var el = document.getElementById('isoStatus');
+        if (el) el.textContent = '✓ ' + isoCount + ' isochrones';
+      }
+      toast('Network data auto-loaded: ' + stations + ' stations', 'ok');
+      // If locations already loaded, trigger render
+      if (S.locationData) { scheduleRender && scheduleRender(); }
+    },
+    function(e) {
+      console.warn('Auto-fetch network JSON failed:', e.message, '— use manual upload');
     }
-    if (loadBtn) loadBtn.disabled = false;
-    var isoCount = (merged.summary && merged.summary.isochrones_count) || 0;
-    if (isoCount > 0) {
-      var el = document.getElementById('isoStatus');
-      if (el) el.textContent = '✓ ' + isoCount + ' isochrones';
-    }
-  }
+  );
 
-  // ── Fetch all 4 network chunks in parallel ──────────────────────────────────
-  var netBtn = document.getElementById('netJsonBtn');
-  if (netBtn) { netBtn.textContent = '⏳ Auto-loading…'; }
-
-  Promise.all([
-    _fetchJSON(base + '/data/zeno_core.json'),
-    _fetchJSON(base + '/data/zeno_stations.json'),
-    _fetchJSON(base + '/data/zeno_congestion.json'),
-    _fetchJSON(base + '/data/zeno_heatmap.json'),
-  ])
-  .then(function(results) {
-    // Merge all chunks into one object — same structure as original single file
-    var merged = Object.assign({}, results[0], results[1], results[2], results[3]);
-    S.data = merged;
-    _updateNetBtn(merged);
-    var stations = (merged.stations && merged.stations.length) || 0;
-    toast('Network data auto-loaded: ' + stations + ' stations', 'ok');
-    if (S.locationData) { typeof scheduleRender === 'function' && scheduleRender(); }
-  })
-  .catch(function(e) {
-    console.warn('Auto-fetch network chunks failed:', e.message, '— use manual upload');
-    if (netBtn) { netBtn.textContent = '⚠ Auto-load failed — upload manually'; }
-  });
-
-  // ── Fetch locations ──────────────────────────────────────────────────────────
-  _fetchJSON(base + '/data/zeno_locations.json')
-    .then(function(parsed) {
+  // Auto-load locations JSON
+  _fetchAndLoad(
+    base + '/data/zeno_locations.json',
+    function(parsed) {
       S.locationData = parsed;
-      var btn  = document.getElementById('locJsonBtn');
+      var btn = document.getElementById('locJsonBtn');
       var locs = (parsed.locations && parsed.locations.length) || 0;
       if (btn) {
         btn.textContent = '✓ zeno_locations.json (' + locs + ' locations)';
-        btn.className   = 'topbar-file-btn loaded';
+        btn.className = 'topbar-file-btn loaded';
       }
       toast('Locations auto-loaded: ' + locs + ' locations', 'ok');
-      if (S.data) { typeof scheduleRender === 'function' && scheduleRender(); }
-    })
-    .catch(function(e) {
-      console.warn('Auto-fetch locations failed:', e.message, '— use manual upload');
-    });
+      // If network data already loaded, trigger render
+      if (S.data) { scheduleRender && scheduleRender(); }
+    },
+    function(e) {
+      console.warn('Auto-fetch locations JSON failed:', e.message, '— use manual upload');
+    }
+  );
 })();
 
 
