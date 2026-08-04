@@ -1282,10 +1282,11 @@ document.getElementById('locFile').addEventListener('change', () => {
   var netBtn = document.getElementById('netJsonBtn');
   if (netBtn) netBtn.textContent = 'Loading...';
   Promise.all([
-    _fj(base + 'data/zeno_core.json'),
-    _fj(base + 'data/zeno_stations.json'),
-    _fj(base + 'data/zeno_congestion.json'),
-    _fj(base + 'data/zeno_heatmap.json'),
+    var _cb = '?v=' + Date.now();
+    _fj(base + 'data/zeno_core.json' + _cb),
+    _fj(base + 'data/zeno_stations.json' + _cb),
+    _fj(base + 'data/zeno_congestion.json' + _cb),
+    _fj(base + 'data/zeno_heatmap.json' + _cb),
   ]).then(function(chunks) {
     var merged = Object.assign({}, chunks[0], chunks[1], chunks[2], chunks[3]);
     S.data = merged;
@@ -1308,7 +1309,7 @@ document.getElementById('locFile').addEventListener('change', () => {
   });
 
   // ── Locations ───────────────────────────────────────────────────────────────
-  _fj(base + 'data/zeno_locations.json')
+  _fj(base + 'data/zeno_locations.json' + _cb)
     .then(function(parsed) {
       S.locationData = parsed;
       var btn  = document.getElementById('locJsonBtn');
@@ -1322,7 +1323,7 @@ document.getElementById('locFile').addEventListener('change', () => {
     .catch(function(e) { console.warn('Locations auto-fetch failed:', e.message); });
 
   // ── Pipeline CSV ────────────────────────────────────────────────────────────
-  fetch(base + 'data/pipeline.csv')
+  fetch(base + 'data/pipeline.csv?v=' + Date.now())
     .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
     .then(function(txt) {
       function _splitRow(row) {
