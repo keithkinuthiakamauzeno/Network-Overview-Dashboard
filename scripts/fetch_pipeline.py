@@ -42,7 +42,13 @@ client     = gspread.authorize(creds)
 
 print(f"Fetching '{SHEET_NAME}' from sheet {SHEET_ID}...")
 ws   = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-rows = ws.get_all_values()
+# Use UNFORMATTED_VALUE to get plain values, not rich text
+# Also strip embedded newlines that corrupt CSV row structure
+rows = ws.get_all_values(value_render_option='UNFORMATTED_VALUE')
+# Strip newlines and carriage returns from every cell
+rows = [[cell.replace('
+', ' ').replace('
+', ' ') if isinstance(cell, str) else str(cell) for cell in row] for row in rows]
 
 if not rows:
     raise ValueError("Sheet is empty")
