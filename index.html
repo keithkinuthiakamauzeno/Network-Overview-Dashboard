@@ -1336,6 +1336,15 @@ document.getElementById('locFile').addEventListener('change', () => {
         res.push(cur.trim()); return res;
       }
       var lines   = txt.split("\n").filter(function(l) { return l.trim(); });
+      // Skip any non-CSV preamble lines (e.g. HTTP headers in response body)
+      // Real CSV header starts with a known column name
+      var headerIdx = 0;
+      for (var i = 0; i < Math.min(lines.length, 5); i++) {
+        if (lines[i].indexOf('Issue Type') >= 0 || lines[i].indexOf('Status') >= 0 || lines[i].indexOf('Key') >= 0) {
+          headerIdx = i; break;
+        }
+      }
+      lines = lines.slice(headerIdx);
       var headers = _splitRow(lines[0]);
       var data    = lines.slice(1).map(function(line) {
         var vals = _splitRow(line), obj = {};
