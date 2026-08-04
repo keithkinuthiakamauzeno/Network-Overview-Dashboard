@@ -1263,107 +1263,91 @@ document.getElementById('locFile').addEventListener('change', () => {
   });
 });
 
-
-// ── Auto-fetch JSON + Pipeline CSV from GitHub Pages repo ────────────────────
-// Network data split into 4 files to stay under GitHub 100MB limit.
-// Falls back gracefully — manual upload buttons still work.
-(function _autoFetchAll() {
+// ── Auto-fetch from GitHub Pages ─────────────────────────────────────────────
+(function() {
   if (window.location.protocol === 'file:') return;
-  var base = window.location.href.replace(/[^/]*$/, '');
+  var base = window.location.href.replace(/[^\/]*$/, '');
 
-  function _fj(url) {
+  function fj(url) {
     return fetch(url).then(function(r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) throw new Error(r.status);
       return r.json();
     });
   }
 
-  // ── Network data — 4 parallel chunks ───────────────────────────────────────
-  var netBtn = document.getElementById('netJsonBtn');
-  if (netBtn) netBtn.textContent = 'Loading...';
+  // Network JSON — 4 chunks merged
+  var nb = document.getElementById('netJsonBtn');
+  if (nb) nb.textContent = 'Loading...';
   Promise.all([
-      _fj(base + 'data/zeno_core.json'),
-    _fj(base + 'data/zeno_stations.json'),
-    _fj(base + 'data/zeno_congestion.json'),
-    _fj(base + 'data/zeno_heatmap.json'),
-  ]).then(function(chunks) {
-    var merged = Object.assign({}, chunks[0], chunks[1], chunks[2], chunks[3]);
-    S.data = merged;
-    var stations = (merged.stations && merged.stations.length) || 0;
-    var months   = (merged.months   && merged.months.length)   || 0;
-    if (netBtn) {
-      netBtn.textContent = 'v zeno_network_data (' + stations + 'ss / ' + months + 'mo)';
-      netBtn.className   = 'topbar-file-btn loaded';
-    }
-    var loadBtn = document.getElementById('loadBtn');
-    if (loadBtn) loadBtn.disabled = false;
-    var isoCount = (merged.summary && merged.summary.isochrones_count) || 0;
-    var isoEl = document.getElementById('isoStatus');
-    if (isoEl && isoCount > 0) isoEl.textContent = 'v ' + isoCount + ' isochrones';
-    toast('Network data loaded: ' + stations + ' stations', 'ok');
+    fj(base + 'data/zeno_core.json'),
+    fj(base + 'data/zeno_stations.json'),
+    fj(base + 'data/zeno_congestion.json'),
+    fj(base + 'data/zeno_heatmap.json'),
+  ]).then(function(r) {
+    var d = Object.assign({}, r[0], r[1], r[2], r[3]);
+    S.data = d;
+    var ss = (d.stations && d.stations.length) || 0;
+    var mo = (d.months   && d.months.length)   || 0;
+    if (nb) { nb.textContent = 'v Network (' + ss + 'ss/' + mo + 'mo)'; nb.className = 'topbar-file-btn loaded'; }
+    var lb = document.getElementById('loadBtn'); if (lb) lb.disabled = false;
+    var ic = d.summary && d.summary.isochrones_count;
+    var ie = document.getElementById('isoStatus'); if (ie && ic) ie.textContent = 'v ' + ic + ' isochrones';
+    toast('Network loaded: ' + ss + ' stations', 'ok');
     if (S.locationData) { typeof scheduleRender === 'function' && scheduleRender(); }
   }).catch(function(e) {
-    console.warn('Network JSON auto-fetch failed:', e.message);
-    if (netBtn) netBtn.textContent = '! Load failed — upload manually';
+    console.warn('Network fetch failed:', e.message);
+    if (nb) nb.textContent = '! Failed — upload manually';
   });
 
-  // ── Locations ───────────────────────────────────────────────────────────────
-  _fj(base + 'data/zeno_locations.json')
-    .then(function(parsed) {
-      S.locationData = parsed;
-      var btn  = document.getElementById('locJsonBtn');
-      var locs = (parsed.locations && parsed.locations.length) || 0;
-      if (btn) {
-        btn.textContent = 'v zeno_locations (' + locs + ' locs)';
-        btn.className   = 'topbar-file-btn loaded';
-      }
-      if (S.data) { typeof scheduleRender === 'function' && scheduleRender(); }
-    })
-    .catch(function(e) { console.warn('Locations auto-fetch failed:', e.message); });
+  // Locations JSON
+  fj(base + 'data/zeno_locations.json').then(function(d) {
+    S.locationData = d;
+    var b = document.getElementById('locJsonBtn');
+    var n = (d.locations && d.locations.length) || 0;
+    if (b) { b.textContent = 'v Locations (' + n + ')'; b.className = 'topbar-file-btn loaded'; }
+    if (S.data) { typeof scheduleRender === 'function' && scheduleRender(); }
+  }).catch(function(e) { console.warn('Locations fetch failed:', e.message); });
 
-  // ── Pipeline CSV ────────────────────────────────────────────────────────────
-  fetch(base + 'data/pipeline.csv?v=' + Date.now())
-    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-    .then(function(txt) {
-      function _splitRow(row) {
-        var res = [], cur = '', inQ = false;
-        for (var i = 0; i < row.length; i++) {
-          var ch = row[i];
-          if (ch === '"') { inQ = !inQ; }
-          else if (ch === ',' && !inQ) { res.push(cur.trim()); cur = ''; }
-          else { cur += ch; }
-        }
-        res.push(cur.trim()); return res;
+  // Pipeline CSV
+  fetch(base + 'data/pipeline.csv').then(function(r) {
+    if (!r.ok) throw new Error(r.status);
+    return r.text();
+  }).then(function(txt) {
+    function split(row) {
+      var res=[], cur='', q=false;
+      for (var i=0;i<row.length;i++) {
+        var ch=row[i];
+        if (ch==='"'){q=!q;}
+        else if (ch===','&&!q){res.push(cur.trim());cur='';}
+        else{cur+=ch;}
       }
-      var lines   = txt.split("\n").filter(function(l) { return l.trim(); });
-      // Skip any non-CSV preamble lines (e.g. HTTP headers in response body)
-      // Real CSV header starts with a known column name
-      var headerIdx = 0;
-      for (var i = 0; i < Math.min(lines.length, 5); i++) {
-        if (lines[i].indexOf('Issue Type') >= 0 || lines[i].indexOf('Status') >= 0 || lines[i].indexOf('Key') >= 0) {
-          headerIdx = i; break;
-        }
-      }
-      lines = lines.slice(headerIdx);
-      var headers = _splitRow(lines[0]);
-      var data    = lines.slice(1).map(function(line) {
-        var vals = _splitRow(line), obj = {};
-        headers.forEach(function(h, i) { obj[h] = vals[i] || ''; });
-        return obj;
-      }).filter(function(r) { return Object.values(r).some(function(v) { return v; }); });
-      var linkMap = {};
-      data.forEach(function(row) {
-        var key = (row['Key'] || '').trim();
-        if (key && /^[A-Z]+-\d+$/.test(key))
-          linkMap[key] = 'https://zenomoto.atlassian.net/browse/' + key;
-      });
-      function _tryInit() {
-        if (typeof initPipelineLayer === 'function') { initPipelineLayer(data, linkMap); }
-        else { setTimeout(_tryInit, 500); }
-      }
-      _tryInit();
-    })
-    .catch(function(e) { console.warn('Pipeline CSV auto-fetch failed:', e.message); });
+      res.push(cur.trim()); return res;
+    }
+    var lines = txt.split("\n").filter(function(l){return l.trim();});
+    // Find real header row
+    var hi=0;
+    for(var i=0;i<Math.min(lines.length,5);i++){
+      if(lines[i].indexOf('Issue Type')>=0||lines[i].indexOf('Status')>=0){hi=i;break;}
+    }
+    var headers = split(lines[hi]);
+    var data = lines.slice(hi+1).map(function(line){
+      var vals=split(line), obj={};
+      headers.forEach(function(h,i){obj[h]=vals[i]||'';});
+      return obj;
+    }).filter(function(r){
+      return r['Status'] && r['Status'].trim();
+    });
+    var linkMap={};
+    data.forEach(function(r){
+      var k=(r['Key']||'').trim();
+      if(k&&/^[A-Z]+-[0-9]+$/.test(k)) linkMap[k]='https://zenomoto.atlassian.net/browse/'+k;
+    });
+    function tryInit(){
+      if(typeof initPipelineLayer==='function'){initPipelineLayer(data,linkMap);}
+      else{setTimeout(tryInit,500);}
+    }
+    tryInit();
+  }).catch(function(e){console.warn('Pipeline fetch failed:',e.message);});
 })();
 
 // ══════════════════════════════════════════════════════════════════════════════
