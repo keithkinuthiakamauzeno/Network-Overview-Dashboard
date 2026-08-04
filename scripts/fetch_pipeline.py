@@ -72,11 +72,23 @@ if missing:
 
 # Write CSV with only the wanted columns in our defined order
 os.makedirs("data", exist_ok=True)
+# Find last non-empty row — stops at first fully blank row after data
+last_data_row = 1  # start after header
+for i, row in enumerate(rows[1:], start=1):
+    if any(cell.strip() for cell in row):
+        last_data_row = i
+data_rows = rows[1:last_data_row + 1]
+print(f"  Data rows (non-blank): {len(data_rows)}")
+
 with open(OUTPUT, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     writer.writerow(found)  # header — only columns we found
-    for row in rows[1:]:
-        if not any(row):    # skip fully empty rows
+    written = 0
+    for row in data_rows:
+        # Skip rows where Status is blank
+        status_idx = col_idx.get("Status")
+        status_val = row[status_idx].strip() if status_idx is not None and status_idx < len(row) else ""
+        if not status_val:
             continue
         out_row = []
         for col in found:
@@ -84,5 +96,7 @@ with open(OUTPUT, "w", newline="", encoding="utf-8") as f:
             val = row[idx].strip() if idx < len(row) else ""
             out_row.append(val)
         writer.writerow(out_row)
+        written += 1
+    print(f"  Rows written (with Status): {written}")
 
 print(f"  Written {OUTPUT}")
