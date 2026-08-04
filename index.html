@@ -1323,19 +1323,23 @@ document.getElementById('locFile').addEventListener('change', () => {
       }
       res.push(cur.trim()); return res;
     }
+    // Strip hidden Unicode control characters (bidirectional marks etc)
+    function cleanStr(s) {
+      return (s||'').replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\uFEFF]/g, '').trim();
+    }
     var lines = txt.split("\n").filter(function(l){return l.trim();});
     // Find real header row
     var hi=0;
     for(var i=0;i<Math.min(lines.length,5);i++){
       if(lines[i].indexOf('Issue Type')>=0||lines[i].indexOf('Status')>=0){hi=i;break;}
     }
-    var headers = split(lines[hi]);
+    var headers = split(lines[hi]).map(cleanStr);
     var data = lines.slice(hi+1).map(function(line){
       var vals=split(line), obj={};
-      headers.forEach(function(h,i){obj[h]=vals[i]||'';});
+      headers.forEach(function(h,i){obj[h]=cleanStr(vals[i]||'');});
       return obj;
     }).filter(function(r){
-      return r['Status'] && r['Status'].trim();
+      return cleanStr(r['Status']||'').length > 0;
     });
     var linkMap={};
     data.forEach(function(r){
