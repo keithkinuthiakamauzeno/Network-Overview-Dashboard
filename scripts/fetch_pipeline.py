@@ -69,32 +69,37 @@ missing = [c for c in WANTED_COLS if c not in col_idx]
 print(f"  Found {len(found)} / {len(WANTED_COLS)} columns")
 if missing:
     print(f"  Missing (will be blank): {missing}")
+# Debug: show exact headers around Latitude/Longitude
+for i, h in enumerate(headers):
+    if 'lat' in h.lower() or 'lon' in h.lower() or 'coord' in h.lower():
+        print(f"  Col {i}: {repr(h)}")
 
 # Write CSV with only the wanted columns in our defined order
 os.makedirs("data", exist_ok=True)
-# Find last non-empty row — stops at first fully blank row after data
-last_data_row = 1  # start after header
+# Strip hidden Unicode characters from all cells
+import unicodedata
+def clean(val):
+    """Remove bidirectional/invisible Unicode control characters."""
+    return ''.join(ch for ch in val if not unicodedata.category(ch).startswith('C')).strip()
+
+# Find last non-empty row
+last_data_row = 1
 for i, row in enumerate(rows[1:], start=1):
-    if any(cell.strip() for cell in row):
+    if any(clean(cell) for cell in row):
         last_data_row = i
 data_rows = rows[1:last_data_row + 1]
 print(f"  Data rows (non-blank): {len(data_rows)}")
 
 with open(OUTPUT, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(found)  # header — only columns we found
+    writer.writerow([clean(h) for h in found])
     written = 0
     for row in data_rows:
-        # Skip rows where Status is blank
         status_idx = col_idx.get("Status")
-        status_val = row[status_idx].strip() if status_idx is not None and status_idx < len(row) else ""
+        status_val = clean(row[status_idx]) if status_idx is not None and status_idx < len(row) else ""
         if not status_val:
             continue
-        out_row = []
-        for col in found:
-            idx = col_idx[col]
-            val = row[idx].strip() if idx < len(row) else ""
-            out_row.append(val)
+        out_row = [clean(row[col_idx[col]]) if col_idx[col] < len(row) else "" for col in found]
         writer.writerow(out_row)
         written += 1
     print(f"  Rows written (with Status): {written}")
