@@ -1282,11 +1282,10 @@ document.getElementById('locFile').addEventListener('change', () => {
   var netBtn = document.getElementById('netJsonBtn');
   if (netBtn) netBtn.textContent = 'Loading...';
   Promise.all([
-    var _cb = '?v=' + Date.now();
-    _fj(base + 'data/zeno_core.json' + _cb),
-    _fj(base + 'data/zeno_stations.json' + _cb),
-    _fj(base + 'data/zeno_congestion.json' + _cb),
-    _fj(base + 'data/zeno_heatmap.json' + _cb),
+      _fj(base + 'data/zeno_core.json'),
+    _fj(base + 'data/zeno_stations.json'),
+    _fj(base + 'data/zeno_congestion.json'),
+    _fj(base + 'data/zeno_heatmap.json'),
   ]).then(function(chunks) {
     var merged = Object.assign({}, chunks[0], chunks[1], chunks[2], chunks[3]);
     S.data = merged;
@@ -1309,7 +1308,7 @@ document.getElementById('locFile').addEventListener('change', () => {
   });
 
   // ── Locations ───────────────────────────────────────────────────────────────
-  _fj(base + 'data/zeno_locations.json' + _cb)
+  _fj(base + 'data/zeno_locations.json')
     .then(function(parsed) {
       S.locationData = parsed;
       var btn  = document.getElementById('locJsonBtn');
