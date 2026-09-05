@@ -1156,8 +1156,8 @@ let _routeScaled=null, _odScaled=null;
 window.addEventListener('DOMContentLoaded', () => {
   map = L.map('map', {center:[-1.286,36.820], zoom:12, zoomControl:true});
   svgRenderer = L.svg({padding:0.5});
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    {attribution:'© OSM © CARTO', subdomains:'abcd', maxZoom:20}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'Tiles © Esri', maxZoom:16}).addTo(map);
   ssGroup    = L.layerGroup().addTo(map);
   fcGroup    = L.layerGroup().addTo(map);
   ringsGroup = L.layerGroup().addTo(map);
